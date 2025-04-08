@@ -37,8 +37,8 @@ async function run(options: {
     const page = browserController.getPage();
     
     // Determine which script to run
-    const scriptsDir = path.join(__dirname, 'scripts');
-    const scriptPath = path.join(scriptsDir, `${scriptName}.js`);
+    const scriptsDir = path.join(__dirname, '../src/scripts');
+    const scriptPath = path.join(scriptsDir, `${scriptName}.ts`);
     
     if (!fs.existsSync(scriptPath)) {
       throw new Error(`Script not found: ${scriptPath}`);

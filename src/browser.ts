@@ -127,16 +127,35 @@ export class BrowserController {
       // Navigate to the URL
       await this.page.goto(url, { waitUntil: 'networkidle' });
       
-      // Wait for key elements to be present
-      await this.page.waitForSelector('h2', { timeout: 10000 });
-      await this.page.waitForSelector('img[alt*="profile picture"]', { timeout: 10000 });
+      // Wait for universal Instagram page elements that exist on all page types
+      await this.page.waitForSelector('body', { timeout: 15000 });
+      
+      // Wait for the main content container - this selector is more universal than h2
+      // Most Instagram pages (profile, post, etc.) have a main content section 
+      await this.page.waitForSelector('main[role="main"]', { timeout: 15000 });
+      
+      // Check if the page content has loaded by looking for common Instagram elements
+      // This is more reliable than looking for specific elements that might only exist on certain page types
+      await this.page.waitForSelector('section', { timeout: 15000 });
       
       // Additional wait to ensure dynamic content loads
-      await this.page.waitForTimeout(2000);
+      await this.page.waitForTimeout(3000);
       
       console.log('Navigation complete');
     } catch (error) {
       console.error('Error during navigation:', error);
+      
+      // Try to capture a screenshot on navigation error to help with debugging
+      try {
+        if (this.page) {
+          const errorScreenshotPath = `navigation-error-${Date.now()}.png`;
+          await this.page.screenshot({ path: errorScreenshotPath });
+          console.error(`Error screenshot saved to: ${errorScreenshotPath}`);
+        }
+      } catch (screenshotError) {
+        console.error('Failed to capture error screenshot:', screenshotError);
+      }
+      
       throw error;
     }
   }

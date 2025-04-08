@@ -1,6 +1,7 @@
 import { Page } from 'playwright';
 import * as fs from 'fs';
 import * as path from 'path';
+import { transformSync } from 'esbuild';
 
 /**
  * Handles script injection into the browser context
@@ -20,29 +21,50 @@ export class ScriptRunner {
       
       console.log(`Injecting script: ${path.basename(scriptPath)}`);
       
+      // Transpile TypeScript to JavaScript using esbuild
+      const transpileResult = transformSync(scriptContent, {
+        loader: 'ts',
+        target: 'es2015'
+      });
+      const jsScriptContent = transpileResult.code;
+      
       // Extract the function name from the script
-      // This regex finds "extractXXX" function declarations
-      const functionNameMatch = scriptContent.match(/function\s+(extract\w+)\s*\(/);
+      const functionNameMatch = scriptContent.match(/function\s+(extractPost)\s*\(/);
       const functionName = functionNameMatch ? functionNameMatch[1] : null;
       
       if (!functionName) {
         throw new Error(`Could not find extraction function in script: ${scriptPath}`);
       }
       
-      // Wrap the script to set a flag that prevents auto-execution
-      // and returns the data instead
-      const wrappedScript = `
-        // Set flag to prevent auto-execution
-        window.__SCRAPER_IMPORT__ = true;
+      // Execute the script in the page context using dynamic script injection
+      const result = await page.evaluate(async ({ scriptCode, targetFunctionName }) => {
+        // Remove export statements as they are not needed/allowed in this context
+        const cleanedCode = scriptCode.replace(/^export\s+/gm, '');
         
-        ${scriptContent}
+        const scriptElement = document.createElement('script');
+        scriptElement.textContent = cleanedCode;
+        scriptElement.id = '__temp_scraper_script__'; // Add an ID for easy removal
+        document.body.appendChild(scriptElement);
         
-        // Return the extracted data by calling the extraction function
-        ${functionName}();
-      `;
+        // Ensure the function is available on the window object
+        // Need to wait briefly for the script to parse and execute
+        await new Promise(resolve => setTimeout(resolve, 50)); 
+
+        let data = null;
+        if (typeof (window as any)[targetFunctionName] === 'function') {
+          // Call the function
+          data = await (window as any)[targetFunctionName]();
+        } else {
+          console.error(`Scraper function ${targetFunctionName} not found on window after script injection.`);
+          throw new Error(`Scraper function ${targetFunctionName} not found.`);
+        }
+        
+        // Clean up the added script tag
+        document.getElementById(scriptElement.id)?.remove();
+        
+        return data;
+      }, { scriptCode: jsScriptContent, targetFunctionName: functionName }) as T;
       
-      // Execute the script in the page context
-      const result = await page.evaluate(wrappedScript) as T;
       console.log(`Script execution complete: ${path.basename(scriptPath)}`);
       
       return result;
