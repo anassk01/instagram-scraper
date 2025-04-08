@@ -1,8 +1,8 @@
-import { firefox, Browser, BrowserContext, Page } from 'playwright';
+import { firefox } from 'playwright';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
-import * as sqlite3 from 'sqlite3';
+import sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
 
 /**
@@ -10,16 +10,18 @@ import { open } from 'sqlite';
  * Handles Firefox profile for maintaining Instagram sessions
  */
 export class BrowserController {
-  private browser: Browser | null = null;
-  private context: BrowserContext | null = null;
-  private page: Page | null = null;
+  constructor() {
+    this.browser = null;
+    this.context = null;
+    this.page = null;
+  }
 
   /**
    * Extracts cookies from Firefox profile
-   * @param profilePath Path to Firefox profile directory
-   * @returns Array of cookies
+   * @param {string} profilePath Path to Firefox profile directory
+   * @returns {Promise<Array>} Array of cookies
    */
-  private async extractCookies(profilePath: string): Promise<any[]> {
+  async extractCookies(profilePath) {
     const cookiesPath = path.join(profilePath, 'cookies.sqlite');
     
     if (!fs.existsSync(cookiesPath)) {
@@ -31,7 +33,7 @@ export class BrowserController {
       // Open the cookies database
       const db = await open({
         filename: cookiesPath,
-        driver: sqlite3.Database
+        driver: sqlite3.verbose().Database
       });
       
       // Query for Instagram cookies
@@ -53,9 +55,9 @@ export class BrowserController {
 
   /**
    * Launches a browser session with cookies from an existing Firefox profile
-   * @param profilePath Path to Firefox profile directory
+   * @param {string} profilePath Path to Firefox profile directory
    */
-  async launch(profilePath: string): Promise<void> {
+  async launch(profilePath) {
     try {
       // Validate profile path
       if (!fs.existsSync(profilePath)) {
@@ -114,9 +116,9 @@ export class BrowserController {
 
   /**
    * Navigates to a URL and waits for content to load
-   * @param url URL to navigate to
+   * @param {string} url URL to navigate to
    */
-  async navigateTo(url: string): Promise<void> {
+  async navigateTo(url) {
     if (!this.page) {
       throw new Error('Browser not initialized');
     }
@@ -162,9 +164,9 @@ export class BrowserController {
 
   /**
    * Gets the current page instance
-   * @returns Playwright Page instance
+   * @returns {import('playwright').Page} Playwright Page instance
    */
-  getPage(): Page {
+  getPage() {
     if (!this.page) {
       throw new Error('Browser not initialized');
     }
@@ -173,9 +175,9 @@ export class BrowserController {
 
   /**
    * Takes a screenshot of the current page
-   * @param filePath Path to save the screenshot
+   * @param {string} filePath Path to save the screenshot
    */
-  async takeScreenshot(filePath: string): Promise<void> {
+  async takeScreenshot(filePath) {
     if (!this.page) {
       throw new Error('Browser not initialized');
     }
@@ -191,7 +193,7 @@ export class BrowserController {
   /**
    * Closes the browser session
    */
-  async close(): Promise<void> {
+  async close() {
     if (this.context) {
       await this.context.close();
       this.context = null;

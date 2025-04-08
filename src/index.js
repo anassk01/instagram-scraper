@@ -1,8 +1,13 @@
 import 'dotenv/config';
-import { browserController } from './browser';
-import { scriptRunner } from './script-runner';
+import { browserController } from './browser.js';
+import { directInjectionRunner } from './direct-injection-runner.js';
 import * as path from 'path';
 import * as fs from 'fs';
+import { fileURLToPath } from 'url';
+
+// Define __filename and __dirname for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Instagram scraper main orchestrator
 
@@ -10,12 +15,7 @@ import * as fs from 'fs';
  * Main function to run the Instagram scraper
  * @param options Configuration options
  */
-async function run(options: {
-  profilePath: string;
-  targetUrl: string;
-  outputDir?: string;
-  scriptName?: string;
-}) {
+async function run(options) {
   const { profilePath, targetUrl, outputDir = 'output', scriptName = 'profile' } = options;
   
   try {
@@ -36,17 +36,19 @@ async function run(options: {
     // Get the Playwright page
     const page = browserController.getPage();
     
-    // Determine which script to run
-    const scriptsDir = path.join(__dirname, '../src/scripts');
-    const scriptPath = path.join(scriptsDir, `${scriptName}.ts`);
+    // Determine which script to run - pointing to src/scripts directly
+    const scriptsDir = path.join(__dirname, 'scripts');
+    
+    // Make sure we're using the correct script extension (.js)
+    const scriptPath = path.join(scriptsDir, `${scriptName}.js`);
     
     if (!fs.existsSync(scriptPath)) {
       throw new Error(`Script not found: ${scriptPath}`);
     }
     
-    // Run the requested script
+    // Run the requested script using our new direct injection runner
     console.log(`Starting ${scriptName} extraction...`);
-    const data = await scriptRunner.injectAndRun(page, scriptPath);
+    const data = await directInjectionRunner.runScript(page, scriptPath);
     
     // Save results to file
     const outputPath = path.join(outputDir, `${scriptName}_${new Date().toISOString().replace(/:/g, '-')}.json`);
@@ -72,7 +74,7 @@ async function run(options: {
 }
 
 // Execute when run directly
-if (require.main === module) {
+if (__filename === process.argv[1]) {
   const profilePath = process.env.FIREFOX_PROFILE_PATH || '';
   if (!profilePath) {
     console.error('ERROR: Please set FIREFOX_PROFILE_PATH environment variable');
