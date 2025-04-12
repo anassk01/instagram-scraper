@@ -16,7 +16,7 @@ const __dirname = path.dirname(__filename);
  * @param options Configuration options
  */
 async function run(options) {
-  const { profilePath, targetUrl, outputDir = 'output', scriptName = 'profile' } = options;
+  const { profilePath, targetUrl, outputDir = 'output', scriptName = 'profile', includeComments = true } = options;
   
   try {
     console.log('Instagram Scraper Starting...');
@@ -46,9 +46,37 @@ async function run(options) {
       throw new Error(`Script not found: ${scriptPath}`);
     }
     
-    // Run the requested script using our new direct injection runner
+    // Load necessary helper scripts based on the main script
+    let helperScripts = [];
+    const helperNames = [];
+
+    // Common helpers needed by 'post' script
+    if (scriptName === 'post') {
+        helperNames.push('image-extractor', 'video-extractor', 'carousel-extractor');
+        // Conditionally add comment extractor
+        if (includeComments) {
+            helperNames.push('comment-extractor');
+        }
+    }
+    // Add other script-specific helpers here if needed in the future
+
+    // Load the specified helpers
+    for (const helperName of helperNames) {
+        const helperPath = path.join(scriptsDir, `${helperName}.js`);
+        const exists = fs.existsSync(helperPath);
+        console.log(`[Index Check] Checking for helper: ${helperPath} - Exists: ${exists}`); // Added check log
+        if (exists) {
+            console.log(`[Index Check] Including helper module: ${helperName}.js`);
+            helperScripts.push(helperPath);
+        } else {
+            // Log a warning if a required helper is missing
+            console.warn(`[Index Check] Helper module not found, execution might fail: ${helperPath}`);
+        }
+    }
+    
+    // Run the requested script using our direct injection runner
     console.log(`Starting ${scriptName} extraction...`);
-    const data = await directInjectionRunner.runScript(page, scriptPath);
+    const data = await directInjectionRunner.runScript(page, scriptPath, helperScripts);
     
     // Save results to file
     const outputPath = path.join(outputDir, `${scriptName}_${new Date().toISOString().replace(/:/g, '-')}.json`);
@@ -58,6 +86,11 @@ async function run(options) {
     // Display results
     console.log('\nExtracted Data:');
     console.log(JSON.stringify(data, null, 2));
+    
+    // If we included comments, show comment count
+    if (scriptName === 'post' && includeComments && data.comments) {
+      console.log(`\nExtracted ${data.comments.length} comments from the post`);
+    }
     
     // Take a screenshot for verification (optional)
     await browserController.takeScreenshot(path.join(outputDir, `${scriptName}_screenshot.png`));
@@ -84,10 +117,14 @@ if (__filename === process.argv[1]) {
   const targetUrl = process.argv[2] || 'https://www.instagram.com/instagram/';
   const scriptName = process.argv[3] || 'profile';
   
+  // Check if --no-comments flag is provided
+  const includeComments = !process.argv.includes('--no-comments');
+  
   run({
     profilePath,
     targetUrl,
-    scriptName
+    scriptName,
+    includeComments
   }).catch(error => {
     console.error('Fatal error:', error);
     process.exit(1);
